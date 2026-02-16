@@ -656,6 +656,108 @@
             }
         }
 
+        .password-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .password-container {
+            background: white;
+            border-radius: 16px;
+            padding: 50px 40px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.5s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .password-header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .password-header h1 {
+            color: #2d3748;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .password-header p {
+            color: #718096;
+            font-size: 15px;
+        }
+
+        .password-input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .password-input-group input {
+            flex: 1;
+            padding: 16px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .password-input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .password-input-group button {
+            padding: 16px 32px;
+            white-space: nowrap;
+        }
+
+        .password-error {
+            color: #e53e3e;
+            font-size: 14px;
+            text-align: center;
+            min-height: 20px;
+            font-weight: 500;
+        }
+
+        .password-footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 25px;
+            border-top: 2px solid #f7fafc;
+        }
+
+        .password-footer p {
+            color: #a0aec0;
+            font-size: 13px;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+
         .config-section {
             background: white;
             padding: 25px 30px;
@@ -692,7 +794,27 @@
         <div class="spinner"></div>
     </div>
 
-    <div class="container">
+    <!-- Password Protection Screen -->
+    <div class="password-screen" id="passwordScreen">
+        <div class="password-container">
+            <div class="password-header">
+                <h1>🔒 Algo Client Management System</h1>
+                <p>Please enter the password to access the system</p>
+            </div>
+            <form id="passwordForm">
+                <div class="password-input-group">
+                    <input type="password" id="passwordInput" placeholder="Enter password" required>
+                    <button type="submit" class="btn btn-primary">Unlock</button>
+                </div>
+                <div id="passwordError" class="password-error"></div>
+            </form>
+            <div class="password-footer">
+                <p>🔐 Secure access for authorized team members only</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="mainApp" style="display: none;">
         <div class="setup-banner" id="setupBanner">
             <h3>⚙️ Firebase Configuration Required</h3>
             <p>Please configure your Firebase credentials to start using the system. Click the button below to set up.</p>
@@ -863,8 +985,65 @@
         let searchQuery = '';
         let isFirebaseConfigured = false;
 
+        // Password protection
+        const CORRECT_PASSWORD = "algo2024"; // Change this to your desired password
+        const PASSWORD_SESSION_KEY = "algoClientAuth";
+
+        function checkPassword() {
+            const isAuthenticated = sessionStorage.getItem(PASSWORD_SESSION_KEY);
+            if (isAuthenticated === "true") {
+                showMainApp();
+            } else {
+                showPasswordScreen();
+            }
+        }
+
+        function validatePassword() {
+            const password = document.getElementById('passwordInput').value;
+            const errorEl = document.getElementById('passwordError');
+            
+            if (password === CORRECT_PASSWORD) {
+                sessionStorage.setItem(PASSWORD_SESSION_KEY, "true");
+                errorEl.textContent = '';
+                showMainApp();
+            } else {
+                errorEl.textContent = '❌ Incorrect password. Please try again.';
+                document.getElementById('passwordInput').value = '';
+                document.getElementById('passwordInput').focus();
+                
+                // Shake animation on error
+                const container = document.querySelector('.password-container');
+                container.style.animation = 'shake 0.5s';
+                setTimeout(() => {
+                    container.style.animation = 'fadeInUp 0.5s ease';
+                }, 500);
+            }
+        }
+
+        function showPasswordScreen() {
+            document.getElementById('passwordScreen').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+            setTimeout(() => {
+                document.getElementById('passwordInput').focus();
+            }, 100);
+        }
+
+        function showMainApp() {
+            document.getElementById('passwordScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            // Password protection check
+            checkPassword();
+            
+            // Password form submission
+            document.getElementById('passwordForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                validatePassword();
+            });
+            
             loadFirebaseConfig();
             
             // Search functionality
