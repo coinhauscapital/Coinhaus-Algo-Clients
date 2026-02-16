@@ -877,23 +877,28 @@
         <div class="spinner"></div>
     </div>
 
-    <!-- Password Protection Screen -->
-    <div class="password-screen" id="passwordScreen">
+    <!-- Login Screen -->
+    <div class="password-screen" id="loginScreen">
         <div class="password-container">
             <div class="password-header">
                 <h1>💼 Coinhaus Capital</h1>
                 <p>Algo Client Management System</p>
-                <p style="margin-top: 15px; color: #718096; font-size: 14px;">Please enter the password to access the system</p>
+                <p style="margin-top: 15px; color: #718096; font-size: 14px;">Sign in to access the system</p>
             </div>
-            <form id="passwordForm">
-                <div class="password-input-group">
-                    <input type="password" id="passwordInput" placeholder="Enter password" required>
-                    <button type="submit" class="btn btn-primary">Unlock</button>
+            <form id="loginForm">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 8px; color: #4a5568; font-weight: 600; font-size: 14px;">Email</label>
+                    <input type="email" id="loginEmail" placeholder="your.email@company.com" required style="width: 100%; padding: 16px 20px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px;">
                 </div>
-                <div id="passwordError" class="password-error"></div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; color: #4a5568; font-weight: 600; font-size: 14px;">Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter your password" required style="width: 100%; padding: 16px 20px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px;">
+                </div>
+                <div id="loginError" class="password-error" style="margin-bottom: 15px;"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 16px; font-size: 16px;">Sign In</button>
             </form>
             <div class="password-footer">
-                <p>🔐 Secure access for authorized team members only</p>
+                <p>🔐 Secure authentication for authorized team members</p>
             </div>
         </div>
     </div>
@@ -911,7 +916,9 @@
                     <h1>💼 Coinhaus Capital</h1>
                     <p>Manage your algo trading subscription clients</p>
                 </div>
-                <div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span id="userEmail" style="color: #4a5568; font-size: 14px; font-weight: 500;"></span>
+                    <button class="btn btn-small" onclick="logout()" style="background: #fc8181; color: white;">🚪 Logout</button>
                     <span class="connection-status disconnected" id="connectionStatus">
                         <span class="dot"></span>
                         Disconnected
@@ -1060,6 +1067,7 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
     <script>
         let db = null;
@@ -1068,34 +1076,70 @@
         let currentFilter = 'all';
         let searchQuery = '';
         let isFirebaseConfigured = false;
+        let auth = null;
+        let currentUser = null;
 
-        // Password protection
-        const CORRECT_PASSWORD = "algo2024"; // Change this to your desired password
-        const PASSWORD_SESSION_KEY = "algoClientAuth";
-
-        function checkPassword() {
-            const isAuthenticated = sessionStorage.getItem(PASSWORD_SESSION_KEY);
-            if (isAuthenticated === "true") {
-                showMainApp();
-            } else {
-                showPasswordScreen();
-            }
+        // Authentication functions
+        function checkAuthState() {
+            if (!auth) return;
+            
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    currentUser = user;
+                    showMainApp();
+                    document.getElementById('userEmail').textContent = user.email;
+                } else {
+                    currentUser = null;
+                    showLoginScreen();
+                }
+            });
         }
 
-        function validatePassword() {
-            const password = document.getElementById('passwordInput').value;
-            const errorEl = document.getElementById('passwordError');
+        function showLoginScreen() {
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+        }
+
+        function showMainApp() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            loadClientsFromFirebase();
+        }
+
+        async function handleLogin(email, password) {
+            const errorEl = document.getElementById('loginError');
+            errorEl.textContent = '';
             
-            if (password === CORRECT_PASSWORD) {
-                sessionStorage.setItem(PASSWORD_SESSION_KEY, "true");
-                errorEl.textContent = '';
-                showMainApp();
-            } else {
-                errorEl.textContent = '❌ Incorrect password. Please try again.';
-                document.getElementById('passwordInput').value = '';
-                document.getElementById('passwordInput').focus();
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                // Auth state change will handle showing main app
+            } catch (error) {
+                console.error('Login error:', error);
+                let errorMessage = '❌ Login failed. ';
                 
-                // Shake animation on error
+                switch(error.code) {
+                    case 'auth/invalid-email':
+                        errorMessage += 'Invalid email address.';
+                        break;
+                    case 'auth/user-disabled':
+                        errorMessage += 'This account has been disabled.';
+                        break;
+                    case 'auth/user-not-found':
+                        errorMessage += 'No account found with this email.';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage += 'Incorrect password.';
+                        break;
+                    case 'auth/invalid-credential':
+                        errorMessage += 'Invalid email or password.';
+                        break;
+                    default:
+                        errorMessage += error.message;
+                }
+                
+                errorEl.textContent = errorMessage;
+                
+                // Shake animation
                 const container = document.querySelector('.password-container');
                 container.style.animation = 'shake 0.5s';
                 setTimeout(() => {
@@ -1104,28 +1148,20 @@
             }
         }
 
-        function showPasswordScreen() {
-            document.getElementById('passwordScreen').style.display = 'flex';
-            document.getElementById('mainApp').style.display = 'none';
-            setTimeout(() => {
-                document.getElementById('passwordInput').focus();
-            }, 100);
-        }
-
-        function showMainApp() {
-            document.getElementById('passwordScreen').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'block';
+        function logout() {
+            if (auth) {
+                auth.signOut();
+            }
         }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            // Password protection check
-            checkPassword();
-            
-            // Password form submission
-            document.getElementById('passwordForm').addEventListener('submit', function(e) {
+            // Login form submission
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
                 e.preventDefault();
-                validatePassword();
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
+                handleLogin(email, password);
             });
             
             loadFirebaseConfig();
@@ -1228,10 +1264,11 @@
                     firebase.initializeApp(config);
                 }
                 db = firebase.database();
+                auth = firebase.auth();
                 isFirebaseConfigured = true;
                 updateConnectionStatus(true);
                 hideSetupBanner();
-                loadClientsFromFirebase();
+                checkAuthState();
             } catch (error) {
                 console.error('Firebase initialization error:', error);
                 showToast('Error connecting to Firebase. Please check your configuration.');
